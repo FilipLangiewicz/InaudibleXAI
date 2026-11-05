@@ -5,6 +5,9 @@ Conditions, each compared with the output for the original clip:
 - deletion: all bins below the masking threshold removed
 - random_deletion: the same number of bins per frame removed at random lines (a change of the same size)
 - between_clips: the original output of a different clip (the between-clip control)
+
+The rows "<condition>_vs_between" of summary.csv give the change as a ratio of the between-clip change,
+with the verdict of the refuting rule (docs/refuting_result.md).
 """
 
 import json
@@ -23,7 +26,7 @@ from scipy.signal import resample_poly
 from inaudible.data import download_esc50, read_audio
 from inaudible.deletion import delete_random, delete_subthreshold, noise_to_mask, resynthesize
 from inaudible.masking import Model1
-from inaudible.metrics import between_clip_pairs, bootstrap_ci, output_change
+from inaudible.metrics import between_clip_pairs, bootstrap_ci, bootstrap_ratio_ci, output_change, within_control
 from inaudible.models import AudioClassifier, build_model
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
@@ -148,6 +151,20 @@ def run_experiment(
         for m, values in measures.items():
             mean, lo, hi = bootstrap_ci(values, rng, cfg["metrics"]["n_boot"])
             rows.append({"condition": c, "measure": m, "mean": mean, "ci_low": lo, "ci_high": hi})
+    for c in CONDITIONS:
+        for m, values in changes[c].items():
+            ratio, lo, hi = bootstrap_ratio_ci(values, changes["between_clips"][m], rng, cfg["metrics"]["n_boot"])
+            verdict = within_control(lo, hi, cfg["metrics"]["within_margin"])
+            rows.append(
+                {
+                    "condition": f"{c}_vs_between",
+                    "measure": m,
+                    "mean": ratio,
+                    "ci_low": lo,
+                    "ci_high": hi,
+                    "verdict": verdict,
+                }
+            )
     for col in audio_stats.columns.drop("filename"):
         mean, lo, hi = bootstrap_ci(audio_stats[col].to_numpy(), rng, cfg["metrics"]["n_boot"])
         rows.append({"condition": "audio", "measure": col, "mean": mean, "ci_low": lo, "ci_high": hi})

@@ -75,13 +75,20 @@ def noise_to_mask(
     """Objective audibility check of a change, against the masking threshold of the original.
 
     The residual (original minus processed) is inaudible in a bin if its power is below the threshold.
-    Returns the mean noise-to-mask ratio in dB and the fraction of bins with an audible residual.
+    Returns the mean noise-to-mask ratio in dB, the fraction of bins with an audible residual, and the
+    fraction of (frame, critical band) cells where the residual power summed over the band is above the
+    minimum threshold in the band.
     """
     residual = analyze(original - processed, model.n_fft)
     thr = threshold_db
     res_db = model.to_db(np.abs(residual) ** 2)
     nmr = 10 ** ((res_db - thr) / 10)
+    # MPEG layer II compares the noise summed over a subband with the minimum threshold in that subband.
+    band = np.floor(model.z).astype(int)
+    res_pow, thr_pow = 10 ** (res_db / 10), 10 ** (thr / 10)
+    band_over = [res_pow[band == b].sum(axis=0) > thr_pow[band == b].min(axis=0) for b in np.unique(band)]
     return {
         "nmr_db": float(10 * np.log10(nmr.mean())),
         "fraction_bins_audible": float((res_db > thr).mean()),
+        "fraction_bands_audible": float(np.mean(band_over)),
     }

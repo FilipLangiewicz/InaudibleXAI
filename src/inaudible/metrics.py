@@ -55,3 +55,25 @@ def bootstrap_ci(
     means = values[rng.integers(0, len(values), size=(n_boot, len(values)))].mean(axis=1)
     lo, hi = np.quantile(means, [(1 - level) / 2, (1 + level) / 2])
     return float(values.mean()), float(lo), float(hi)
+
+
+def bootstrap_ratio_ci(
+    num: np.ndarray, den: np.ndarray, rng: np.random.Generator, n_boot: int = 10000, level: float = 0.95
+) -> tuple[float, float, float]:
+    """Ratio of two means and its percentile bootstrap interval. Each resample uses the same clips for both means."""
+    num, den = np.asarray(num, dtype=float), np.asarray(den, dtype=float)
+    idx = rng.integers(0, len(num), size=(n_boot, len(num)))
+    # A resample with a zero control (possible only with few clips) has no ratio, so it is left out.
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ratios = num[idx].mean(axis=1) / den[idx].mean(axis=1)
+    lo, hi = np.nanquantile(ratios, [(1 - level) / 2, (1 + level) / 2])
+    return float(num.mean() / den.mean()), float(lo), float(hi)
+
+
+def within_control(ci_low: float, ci_high: float, margin: float) -> str:
+    """Verdict of the refuting rule in docs/refuting_result.md for an interval of the ratio to the control."""
+    if ci_high < margin:
+        return "within"
+    if ci_low > margin:
+        return "outside"
+    return "unclear"

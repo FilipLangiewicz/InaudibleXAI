@@ -47,7 +47,7 @@ def test_pipeline_writes_all_results(tmp_path, monkeypatch):
         "data": {"clip_list": "clips.csv"},
         "masking": {"model": "mpeg1", "n_fft": 512, "playback_db": 96.0},
         "model": {"name": "band-energy"},
-        "metrics": {"n_boot": 200},
+        "metrics": {"n_boot": 200, "within_margin": 0.05},
     }
     out = tmp_path / "out"
     metrics = experiment.run_experiment(cfg, out, audio_dir, device="cpu", model=BandEnergyModel())
@@ -57,4 +57,6 @@ def test_pipeline_writes_all_results(tmp_path, monkeypatch):
     assert len(list((out / "listening").glob("clip0_*.wav"))) == 4
     assert metrics["n_clips"] == 4
     assert metrics["resynthesis.js_divergence"] < 1e-6
+    summary = pd.read_csv(out / "summary.csv").set_index(["condition", "measure"])
+    assert summary.loc[("resynthesis_vs_between", "js_divergence"), "verdict"] == "within"
     assert json.loads((out / "metrics.json").read_text()) == metrics

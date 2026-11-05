@@ -16,34 +16,37 @@ Do audio models use sound that a human cannot hear? Do their explanations point 
 
 ## The refuting result
 
-The project is refuted if all these statements are true:
+We use the refuting result of the project card (`task_input/X2_projekt.md`) without a change:
 
-1. For every model and task, the removal of the inaudible part changes the answer of the model no more than a null change does (see below).
-2. Statement 1 is true at both playback levels and under both masking models.
-3. For every attribution method, the share of the map in inaudible bins is not larger than the share for a random map.
+> The decision change and the attribution mass below threshold stay within the between-clip control for every model and task, at both playback levels and under both masking models.
 
-Then the models hear only what a human hears. The result is still useful: the metric becomes a certificate for a model.
+If this result occurs, the models hear only what a human hears. The result is still useful: the metric becomes a certificate for a model.
 
-## How we decide for one model and one task
+## The controls
 
-A null change is a change that a human cannot hear and that removes no sound. Examples:
+All controls come from the project card:
 
-- a shift of the clip by a few samples
-- a change of the level by 0.5 dB
-- noise at -90 dBFS
-- resynthesis without a change (STFT and inverse STFT)
+- `between_clips`: the change of the output between two different clips (card, "First steps").
+- `resynthesis`: STFT and inverse STFT without a change. It shows the artifacts of the resynthesis alone (card, "Watch out for").
+- `random_deletion`: the same number of bins per frame, removed at random lines. It is the random perturbation of the same size (card, "Toolbox").
+- a random map, for the attribution mass (card, "Plan" and "Toolbox").
 
-The decision has three steps:
-
-1. Measure the change of the model output under each null change. The noise floor of the model is the largest upper limit of the 95 % bootstrap intervals.
-2. Measure the change under the removal of the inaudible part, with its 95 % bootstrap interval.
-3. Compare the two values:
-   - If the upper limit of the removal is below the noise floor, the removal has no effect (the refuting result for this pair).
-   - If the lower limit of the removal is above the noise floor, the removal has an effect (H1 for this pair).
-   - In all other cases, the result is not clear. Then we add clips.
+Each value has a 95 % bootstrap interval over the clips. We call a difference a difference only when the intervals show it (card, "Toolbox").
 
 The main measure is the Jensen-Shannon divergence between the outputs (see `src/inaudible/metrics.py`).
 
-## The role of the between-clip change
+## How we decide for one model and one task
 
-The between-clip change is the change of the output between two different clips. We use it only as a scale. We give the effect of the removal as a percentage of the between-clip change. Then the numbers of different models have the same scale. The between-clip change is not a part of the decision.
+The card does not give a number for "within the between-clip control". The team set this rule on 2026-11-06, after the 100-clip prototype and before T3:
+
+1. For each clip, measure the change of the output under the deletion and under the between-clip control.
+2. Divide the mean deletion change by the mean between-clip change.
+3. Compute the 95 % bootstrap interval of this ratio. Each resample uses the same clips for both means.
+4. Compare the interval with the margin of 5 %:
+   - If the upper limit is below 5 %, the deletion change is within the between-clip control (the refuting result for this pair).
+   - If the lower limit is above 5 %, the deletion change is outside the between-clip control (H1 for this pair).
+   - In all other cases, the result is not clear. Then we add clips.
+
+The margin of 5 % is a decision of the team. It is the same value as in the first version of this file. The rows `deletion_vs_between` of `summary.csv` give the ratio, its interval and the verdict.
+
+We set the rule for the attribution mass before T4.

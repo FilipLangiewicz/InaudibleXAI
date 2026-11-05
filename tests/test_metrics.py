@@ -1,7 +1,15 @@
 import numpy as np
 import pytest
 
-from inaudible.metrics import between_clip_pairs, bootstrap_ci, confidence_drop, js_divergence, output_change
+from inaudible.metrics import (
+    between_clip_pairs,
+    bootstrap_ci,
+    bootstrap_ratio_ci,
+    confidence_drop,
+    js_divergence,
+    output_change,
+    within_control,
+)
 
 
 def test_identical_outputs_have_no_change():
@@ -37,3 +45,16 @@ def test_bootstrap_interval_contains_the_mean():
     mean, lo, hi = bootstrap_ci(values, np.random.default_rng(2), n_boot=2000)
     assert lo < mean < hi
     assert hi - lo == pytest.approx(2 * 1.96 / np.sqrt(200), rel=0.3)
+
+
+def test_bootstrap_ratio_of_proportional_values_is_exact():
+    den = np.random.default_rng(3).uniform(0.5, 1.0, 100)
+    ratio, lo, hi = bootstrap_ratio_ci(0.1 * den, den, np.random.default_rng(4), n_boot=500)
+    assert ratio == pytest.approx(0.1)
+    assert lo == pytest.approx(0.1) and hi == pytest.approx(0.1)
+
+
+def test_within_control_needs_the_whole_interval_on_one_side_of_the_margin():
+    assert within_control(0.01, 0.04, 0.05) == "within"
+    assert within_control(0.06, 0.20, 0.05) == "outside"
+    assert within_control(0.03, 0.07, 0.05) == "unclear"

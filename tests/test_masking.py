@@ -79,6 +79,17 @@ def test_deletion_removes_masked_tone_and_is_below_threshold():
     assert check["fraction_bins_audible"] < 0.01
 
 
+def test_band_check_sums_the_residual_over_each_band():
+    # In white noise, each deleted line is below the threshold, but the sum over a wide band is not.
+    model = Model1(SR, N_FFT)
+    x = 0.2 * np.random.default_rng(4).standard_normal(SR // 2)
+    result = delete_subthreshold(x, model)
+    check = noise_to_mask(x, result.deleted, result.threshold_db, model)
+    assert check["fraction_bins_audible"] < 0.01
+    assert check["fraction_bands_audible"] > 0.1
+    assert noise_to_mask(x, resynthesize(x, N_FFT), result.threshold_db, model)["fraction_bands_audible"] == 0.0
+
+
 def test_random_deletion_is_audible():
     rng = np.random.default_rng(3)
     model = Model1(SR, N_FFT)
