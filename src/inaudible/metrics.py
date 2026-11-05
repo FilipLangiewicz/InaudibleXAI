@@ -20,11 +20,14 @@ def js_divergence(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return np.clip((kl(p, m) + kl(q, m)) / 2, 0.0, 1.0)
 
 
-def cosine_distance(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    """1 minus the cosine similarity of the logit vectors, row by row."""
-    num = np.sum(a * b, axis=-1)
-    den = np.linalg.norm(a, axis=-1) * np.linalg.norm(b, axis=-1)
-    return np.asarray(1 - num / np.maximum(den, 1e-30))
+def confidence_drop(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Drop of the sigmoid probability of the top-1 class of a, from a to b, row by row. Range [-1, 1].
+
+    The models are multi-label, so each class has its own sigmoid probability.
+    """
+    k = a.argmax(axis=-1)
+    rows = np.arange(len(a))
+    return np.asarray(1 / (1 + np.exp(-a[rows, k])) - 1 / (1 + np.exp(-b[rows, k])))
 
 
 def output_change(a: np.ndarray, b: np.ndarray) -> dict[str, np.ndarray]:
@@ -32,7 +35,7 @@ def output_change(a: np.ndarray, b: np.ndarray) -> dict[str, np.ndarray]:
     return {
         "top1_changed": (a.argmax(axis=-1) != b.argmax(axis=-1)).astype(float),
         "js_divergence": js_divergence(a, b),
-        "cosine_distance": cosine_distance(a, b),
+        "confidence_drop": confidence_drop(a, b),
     }
 
 

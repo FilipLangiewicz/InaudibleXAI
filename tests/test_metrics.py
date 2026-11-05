@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from inaudible.metrics import between_clip_pairs, bootstrap_ci, cosine_distance, js_divergence, output_change
+from inaudible.metrics import between_clip_pairs, bootstrap_ci, confidence_drop, js_divergence, output_change
 
 
 def test_identical_outputs_have_no_change():
@@ -17,9 +17,11 @@ def test_js_divergence_is_one_bit_for_disjoint_outputs():
     assert js_divergence(a, b)[0] == pytest.approx(1.0, abs=1e-6)
 
 
-def test_cosine_distance_of_opposite_vectors_is_two():
-    a = np.array([[1.0, 2.0]])
-    assert cosine_distance(a, -a)[0] == pytest.approx(2.0)
+def test_confidence_drop_follows_the_top1_class_of_the_first_output():
+    a = np.array([[0.0, 10.0]])
+    b = np.array([[0.0, 0.0]])
+    assert confidence_drop(a, b)[0] == pytest.approx(1 / (1 + np.exp(-10)) - 0.5)
+    assert confidence_drop(b, a)[0] == pytest.approx(0.0)
 
 
 def test_between_clip_pairs_never_pair_a_clip_with_itself():
