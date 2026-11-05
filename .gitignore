@@ -1,0 +1,29 @@
+# Secrets
+.env
+.kaggle/
+
+# Environment and caches
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Personal tool settings
+.claude/
+.vscode/
+.idea/
+
+# Local experiment tracking
+mlruns/
+mlartifacts/
+
+# Data, model weights and large job outputs stay on Kaggle
+**/jobs/runs/*/output/**/*.npy
+**/jobs/runs/*/output/**/*.npz
+**/jobs/runs/*/output/**/*.log
+**/jobs/runs/*/output/**/*.wav
+*.pt
+*.zip

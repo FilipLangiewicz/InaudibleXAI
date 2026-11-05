@@ -1,0 +1,15 @@
+# T1 prototype: AST on 100 ESC-50 clips, before and after the sub-threshold deletion.
+experiment: t1-prototype
+seed: 0
+data:
+  clip_list: data/clips/esc50_t1.csv
+masking:
+  model: mpeg1
+  n_fft: 512
+  playback_db: 96.0  # SPL of a full-scale sine
+model:
+  name: ast
+  checkpoint: MIT/ast-finetuned-audioset-10-10-0.4593
+  batch_size: 16
+metrics:
+  n_boot: 10000
