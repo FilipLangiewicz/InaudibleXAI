@@ -172,10 +172,10 @@ def run_experiment(
 
 
 def log_to_mlflow(out_dir: Path, tracking_uri: str | None = None) -> str:
-    """Record a downloaded run in the local MLflow store (default: mlruns/ in the project). Returns the run id."""
+    """Record a downloaded run in the local MLflow store (default: mlflow.db in the project). Returns the run id."""
     import mlflow
 
-    mlflow.set_tracking_uri(tracking_uri or (PROJECT_DIR / "mlruns").as_uri())
+    mlflow.set_tracking_uri(tracking_uri or f"sqlite:///{(PROJECT_DIR / 'mlflow.db').as_posix()}")
     cfg = yaml.safe_load((out_dir / "config.yaml").read_text())
     env = json.loads((out_dir / "environment.json").read_text())
     metrics = json.loads((out_dir / "metrics.json").read_text())

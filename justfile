@@ -30,10 +30,10 @@ push FOLDER:
 fetch FOLDER:
     #!/usr/bin/env bash
     set -euo pipefail
-    job="${FOLDER#*_*_}"
+    job="$(echo "{{FOLDER}}" | cut -d_ -f3-)"
     bash jobs/kaggle.sh kernels output "rozaliachojnacka/inaudiblexai-$job" -p "jobs/runs/{{FOLDER}}/output" --file-pattern '(json|csv|yaml|wav|npz)$'
     for d in jobs/runs/{{FOLDER}}/output/*/; do poetry run python -c "from pathlib import Path; from inaudible.experiment import log_to_mlflow; print(log_to_mlflow(Path('$d')))"; done
 
 # Open the MLflow interface for the local runs
 mlflow:
-    poetry run mlflow ui --backend-store-uri mlruns
+    poetry run mlflow ui --backend-store-uri sqlite:///mlflow.db

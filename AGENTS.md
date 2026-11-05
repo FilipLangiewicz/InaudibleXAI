@@ -150,7 +150,7 @@ The course grades a before/after measurement on the same test set. These rules k
 - Freeze the test set at E1. Do not change `data/tasks/test/` after E1. If a change is necessary, run all variants again.
 - Keep the train tasks and the test tasks separate. A test must check that no task is in both sets.
 - Change one thing in each variant. Keep the test set and all other settings the same.
-- Record the config, the model version, the commit hash and the results of each run. Each run writes them into its output folder. `just fetch` also records the run in the local MLflow store (`mlruns/`).
+- Record the config, the model version, the commit hash and the results of each run. Each run writes them into its output folder. `just fetch` also records the run in the local MLflow store (`mlflow.db`).
 - Report the time and the cost of a task next to its quality.
 - The size of the model is not a variable in the grade. An improvement must come from the method, not from a larger model.
 
