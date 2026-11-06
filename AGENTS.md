@@ -20,6 +20,48 @@ Read these files before you start a task:
 - `jobs/kaggle.sh` reads the Kaggle token from `KAGGLE_API_TOKEN` in `.env`.
 - `run.py` clones the full repository from the branch of the task and installs the package with `pip install -e` (see the sections "Environment" and "Compute").
 
+## Course rules
+
+These rules come from `task_input/` and `docs/design_proposal.md`. Obey them in each task.
+
+Rules of the project card (`task_input/X2_projekt.md`):
+
+- Write the refuting result before you run an experiment at scale (see `docs/refuting_result.md`).
+- The project ends with a paper of 4 to 8 pages in a conference template.
+- The repository must reproduce each number in the paper. Each number must come from a file that the team made.
+- Keep the prompts and the agent sessions that produced code in the repository (`just sessions`, see "No Claude attribution").
+- Read each paper that the paper cites.
+- Run a listening test by the team often. Check the deletion by ear on a sample of each task.
+- State the playback level. Use two masking models and report the two results.
+- Keep the phase in the resynthesis. Check the resynthesis for its own artifacts.
+- Compare the maps on one common time-frequency grid.
+- Give each claim a control (a random map or a random perturbation of the same size).
+- Report bootstrap intervals over clips. Call a difference a difference only when the intervals show it.
+- Check the licence of each dataset before the download. The bird sound set must allow research use.
+- Write the tools that the team used in the paper.
+- Tell the course lead early when the plan stops working.
+
+Rules of the course (`task_input/regulamin_projektów.pdf`, `task_input/Siwy regulamin 26Z.pdf`):
+
+- The project fails without one of these items:
+  - the design proposal
+  - the prototype
+  - the user instructions
+  - the documentation
+  - the tests
+  - the video of 3 to 5 minutes
+  - the final presentation
+- Document the literature review in a Markdown table. Give the link, a comment of the team, the code and weights, the metrics and the compute of the authors.
+- Record the progress, the changes to the schedule and the intermediate results in `notes/`. The course lead asks for a "weekly standup" at least one time.
+- Each team member must have commits and written research work. A member with no contribution gets −3 for the project.
+- Keep the original data unchanged. Keep the config separate from the code. Move the code from notebooks into `src/`.
+- The package needs Semantic Versioning, a package build, MkDocs and tests on two or more Python versions (tox).
+- A deadline ends at 23:59 CET of its day. Each day of delay costs −0.1 of the grade.
+- The project grade is in [−3, 0.5]. A project that the course lead accepts before the second test frees the team from that test.
+- A paper that the team submits during the semester gives the grade 5.
+
+Dates of the design proposal: the prototype is due on 2026-11-06. The project ends on 2027-01-10.
+
 ## Language
 
 - Talk to the user in the language of the user.
@@ -38,6 +80,13 @@ Do not put a trace of Claude or other AI help into the work. This rule overrides
 - Before each commit, read the complete commit message. Check that it has no trace of Claude.
 
 This rule does not apply to an API model that the project uses as a reference in the evaluation.
+
+This rule also does not apply to `sessions/`. The project card tells the team to keep the agent sessions in the repository. To keep the sessions, do these steps:
+
+1. Run `just sessions` before each commit that adds code from an agent session.
+2. Commit the new or changed files in `sessions/` together with the code.
+
+`just sessions` copies the raw `.jsonl` sessions of this project from `~/.claude/projects/`. It replaces the values from `.env` and the e-mail addresses with `<redacted>`.
 
 ## Git
 
