@@ -6,11 +6,11 @@ This file describes the papers that the T1 work uses. T1 has three parts:
 - the sub-threshold deletion,
 - the first measurement on AST and ESC-50 with a listening test.
 
-The review has only the papers that the team read in full. The numbering is the numbering of `docs/design_proposal.md`. Dompteur is a new paper. The team found it in T1.
+The numbers in the column "#" are the numbers of `docs/design_proposal.md`. Dompteur is a new paper, and it has the mark "new".
 
 Status: 2026-11-06 (end of T1). "Not given" means that the paper does not report the value.
 
-Add a paper to this file when a task uses it. The other papers of `docs/design_proposal.md` come into this file at T2 to T6.
+The other papers of `docs/design_proposal.md` come into this file at T2 to T6.
 
 ## Papers of T1
 
