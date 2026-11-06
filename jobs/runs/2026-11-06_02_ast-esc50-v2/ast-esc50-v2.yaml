@@ -1,0 +1,17 @@
+# T1 prototype, second run: the same setup as ast-esc50-v1, with the confidence drop,
+# the band audibility check and the verdict of docs/refuting_result.md.
+experiment: t1-prototype
+seed: 0
+data:
+  clip_list: data/clips/esc50_t1.csv
+masking:
+  model: mpeg1
+  n_fft: 512
+  playback_db: 96.0  # SPL of a full-scale sine
+model:
+  name: ast
+  checkpoint: MIT/ast-finetuned-audioset-10-10-0.4593
+  batch_size: 16
+metrics:
+  n_boot: 10000
+  within_margin: 0.05  # margin of the refuting rule (ratio to the between-clip change)

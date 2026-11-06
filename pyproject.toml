@@ -1,0 +1,62 @@
+[project]
+name = "inaudible"
+version = "0.1.0"
+description = "Measure how much of an audio model's decision and explanation lies below the masking threshold."
+authors = [
+    { name = "Joanna Kiesiak" },
+    { name = "Mikołaj Rowicki" },
+    { name = "Filip Langiewicz" },
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "soundfile>=0.12",
+    "pyyaml>=6.0",
+    "pandas>=2.1",
+]
+
+[build-system]
+requires = ["poetry-core>=2.0,<3.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [{ include = "inaudible", from = "src" }]
+
+# Kaggle has its own PyTorch GPU build. Thus the model packages are an optional group:
+# "pip install" of the package on Kaggle does not replace them.
+[tool.poetry.group.models]
+optional = true
+
+[tool.poetry.group.models.dependencies]
+torch = ">=2.2"
+transformers = ">=4.40"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.0"
+ruff = ">=0.6"
+mypy = ">=1.10"
+pre-commit = ">=3.7"
+kaggle = ">=1.7"
+ipykernel = ">=6.29"
+matplotlib = ">=3.8"
+mlflow = ">=2.14"
+pandas-stubs = ">=2.1"
+types-pyyaml = ">=6.0"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "NPY"]
+
+[tool.mypy]
+files = ["src/inaudible/masking.py", "src/inaudible/deletion.py", "src/inaudible/metrics.py"]
+ignore_missing_imports = true
+strict_optional = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
