@@ -1,0 +1,19 @@
+# T2: the comparison of the two masking models (issue #9) at the two playback levels (issue #10),
+# with ViSQOL as an objective audibility measure (issue #11). The other settings are the same as ast-esc50-v2.
+experiment: t2-masking
+seed: 0
+data:
+  clip_list: data/clips/esc50_t1.csv
+masking:
+  model: mpeg1
+  n_fft: 512
+  playback_db: 92.0  # SPL of a full-scale sine
+audibility:
+  visqol: true
+model:
+  name: ast
+  checkpoint: MIT/ast-finetuned-audioset-10-10-0.4593
+  batch_size: 16
+metrics:
+  n_boot: 10000
+  within_margin: 0.05  # margin of the refuting rule (ratio to the between-clip change)
