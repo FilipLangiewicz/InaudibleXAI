@@ -72,7 +72,11 @@ def process_clips(cfg: dict, paths: list[Path], listen: list[bool], out_dir: Pat
     rng = np.random.default_rng(cfg["seed"])
     waves: dict[str, list[np.ndarray]] = {c: [] for c in ["original", *CONDITIONS]}
     rows = []
-    for path, is_listen in zip(paths, listen, strict=True):
+    t0 = time.time()
+    for i, (path, is_listen) in enumerate(zip(paths, listen, strict=True)):
+        if i % 10 == 0:
+            # The Kaggle log shows only the output that a process flushes.
+            print(f"{cfg.get('codename', '')}: clip {i}/{len(paths)}, {time.time() - t0:.0f} s", flush=True)
         x, sr = read_audio(path)
         model = build_masking(mcfg["model"], sr, mcfg["n_fft"], mcfg["playback_db"])
         res = delete_subthreshold(x, model)
@@ -84,6 +88,8 @@ def process_clips(cfg: dict, paths: list[Path], listen: list[bool], out_dir: Pat
         }
         row = {
             "filename": path.name,
+            # A full-scale sine has a mean square of 0.5 and the level playback_db.
+            "clip_spl_db": mcfg["playback_db"] + 10 * np.log10(max(np.mean(x**2), 1e-20) / 0.5),
             "fraction_bins_deleted": res.fraction_bins_deleted,
             "fraction_energy_deleted": res.fraction_energy_deleted,
         }
