@@ -53,7 +53,8 @@ sessions:
                 if len(value) >= 8:
                     secrets.append(value)
     # The optional group keeps a JSON escape such as \n that comes before the address.
-    email = re.compile(r"(\\[nrt])?[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+    # The lookbehind stops a match that starts inside an escape, for example "\n@pytest.mark.parametrize".
+    email = re.compile(r"(\\[nrt])?(?<!\\)[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
     def clean(text):
         for value in secrets:
