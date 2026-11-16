@@ -5,11 +5,14 @@ the mask and the resynthesis, so the mask and the threshold have the same grid.
 """
 
 from dataclasses import dataclass
+from functools import cache
+from math import gcd
+from typing import Any
 
 import numpy as np
-from scipy.signal import istft, stft
+from scipy.signal import istft, resample_poly, stft
 
-from inaudible.masking import Model1
+from inaudible.masking import MaskingModel
 
 
 def analyze(x: np.ndarray, n_fft: int) -> np.ndarray:
@@ -45,7 +48,7 @@ class Deletion:
         return float(power[~self.audible].sum() / power.sum())
 
 
-def delete_subthreshold(x: np.ndarray, model: Model1) -> Deletion:
+def delete_subthreshold(x: np.ndarray, model: MaskingModel) -> Deletion:
     """Remove all bins of x below the masking threshold of x."""
     spec = analyze(x, model.n_fft)
     x_db, thr = model.threshold(np.abs(spec) ** 2)
@@ -70,7 +73,7 @@ def delete_random(x: np.ndarray, audible: np.ndarray, n_fft: int, rng: np.random
 
 
 def noise_to_mask(
-    original: np.ndarray, processed: np.ndarray, threshold_db: np.ndarray, model: Model1
+    original: np.ndarray, processed: np.ndarray, threshold_db: np.ndarray, model: MaskingModel
 ) -> dict[str, float]:
     """Objective audibility check of a change, against the masking threshold of the original.
 
@@ -92,3 +95,26 @@ def noise_to_mask(
         "fraction_bins_audible": float((res_db > thr).mean()),
         "fraction_bands_audible": float(np.mean(band_over)),
     }
+
+
+VISQOL_SAMPLE_RATE = 48000
+
+
+@cache
+def _visqol_api() -> Any:
+    from visqol import VisqolApi
+
+    api = VisqolApi()
+    api.create(mode="audio")
+    return api
+
+
+def visqol_mos(original: np.ndarray, processed: np.ndarray, sample_rate: int) -> float:
+    """ViSQOL v3 in audio mode (MOS-LQO from 1 to 5, 4.73 for identical signals) of processed against original.
+
+    The audio mode needs 48 kHz. Thus both signals are resampled first.
+    """
+    g = gcd(sample_rate, VISQOL_SAMPLE_RATE)
+    up, down = VISQOL_SAMPLE_RATE // g, sample_rate // g
+    ref, deg = (np.asarray(resample_poly(w, up, down)) for w in (original, processed))
+    return float(_visqol_api().measure_from_arrays(ref, deg, VISQOL_SAMPLE_RATE).moslqo)

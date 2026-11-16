@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from inaudible.deletion import analyze, delete_random, delete_subthreshold, noise_to_mask, resynthesize
-from inaudible.masking import Model1, absolute_threshold, bark
+from inaudible.deletion import analyze, delete_random, delete_subthreshold, noise_to_mask, resynthesize, visqol_mos
+from inaudible.masking import MASKING_MODELS, Model1, Model2, absolute_threshold, bark, build_masking
 
 SR = 44100
 N_FFT = 512
@@ -15,7 +15,10 @@ def tone(line: int, amplitude: float) -> np.ndarray:
     return amplitude * np.sin(2 * np.pi * line * SR / N_FFT * T)
 
 
-def audible_share(x: np.ndarray, line: int, model: Model1) -> float:
+BOTH_MODELS = pytest.mark.parametrize("model_cls", [Model1, Model2], ids=lambda m: m.name)
+
+
+def audible_share(x: np.ndarray, line: int, model) -> float:
     result = delete_subthreshold(x, model)
     frames = slice(2, -2)
     return float(result.audible[line, frames].mean())
@@ -34,30 +37,34 @@ def test_full_scale_sine_has_playback_level():
     assert 10 * np.log10(power.sum()) == pytest.approx(96.0, abs=0.01)
 
 
-def test_quiet_tone_near_loud_tone_is_masked():
-    model = Model1(SR, N_FFT)
+@BOTH_MODELS
+def test_quiet_tone_near_loud_tone_is_masked(model_cls):
+    model = model_cls(SR, N_FFT)
     assert audible_share(tone(QUIET_LINE, 0.005), QUIET_LINE, model) == 1.0
     assert audible_share(tone(LOUD_LINE, 0.5) + tone(QUIET_LINE, 0.005), QUIET_LINE, model) == 0.0
     assert audible_share(tone(LOUD_LINE, 0.5) + tone(QUIET_LINE, 0.005), LOUD_LINE, model) == 1.0
 
 
-def test_tone_below_threshold_in_quiet_is_deleted():
+@BOTH_MODELS
+def test_tone_below_threshold_in_quiet_is_deleted(model_cls):
     # 1e-5 of full scale is near 0 dB SPL at 96 dB playback, below the threshold in quiet at 1.3 kHz.
-    model = Model1(SR, N_FFT)
+    model = model_cls(SR, N_FFT)
     assert audible_share(tone(QUIET_LINE, 1e-5), QUIET_LINE, model) == 0.0
 
 
-def test_lower_playback_level_deletes_more():
+@BOTH_MODELS
+def test_lower_playback_level_deletes_more(model_cls):
     rng = np.random.default_rng(0)
     x = 0.05 * rng.standard_normal(SR // 2)
-    loud = delete_subthreshold(x, Model1(SR, N_FFT, playback_db=96.0))
-    soft = delete_subthreshold(x, Model1(SR, N_FFT, playback_db=60.0))
+    loud = delete_subthreshold(x, model_cls(SR, N_FFT, playback_db=96.0))
+    soft = delete_subthreshold(x, model_cls(SR, N_FFT, playback_db=60.0))
     assert soft.fraction_bins_deleted > loud.fraction_bins_deleted
 
 
-def test_threshold_is_not_below_threshold_in_quiet():
+@BOTH_MODELS
+def test_threshold_is_not_below_threshold_in_quiet(model_cls):
     rng = np.random.default_rng(1)
-    model = Model1(SR, N_FFT)
+    model = model_cls(SR, N_FFT)
     result = delete_subthreshold(0.1 * rng.standard_normal(SR // 4), model)
     assert np.all(result.threshold_db >= model.quiet_db[:, None] - 1e-9)
 
@@ -99,3 +106,75 @@ def test_random_deletion_is_audible():
     nmr_deleted = noise_to_mask(x, result.deleted, result.threshold_db, model)["nmr_db"]
     nmr_random = noise_to_mask(x, random, result.threshold_db, model)["nmr_db"]
     assert nmr_random > nmr_deleted + 10
+
+
+def single_peak(model: Model2, line: int, level_db: float) -> np.ndarray:
+    x_db = np.full(len(model.freqs), -50.0)
+    x_db[line] = level_db
+    return x_db
+
+
+def test_model2_threshold_of_one_masker_follows_qin_equations():
+    # Qin et al. (2019), section 4.1: offset -6.025 - 0.275 z, lower slope 27 dB/Bark,
+    # upper slope -27 + 0.37 max(P - 40, 0) dB/Bark.
+    model = Model2(SR, N_FFT)
+    line, level = 40, 90.0
+    idx, power = model.maskers(single_peak(model, line, level))
+    assert list(idx) == [line]
+    assert power[0] == pytest.approx(level, abs=1e-6)
+    dz = model.z - model.z[line]
+    slope = np.where(dz <= 0, 27.0, -27 + 0.37 * (level - 40))
+    individual = level - 6.025 - 0.275 * model.z[line] + slope * dz
+    expected = 10 * np.log10(10 ** (model.quiet_db / 10) + 10 ** (individual / 10))
+    assert np.allclose(model.frame_threshold(single_peak(model, line, level)), expected)
+
+
+def test_model2_upper_slope_is_flatter_for_a_louder_masker():
+    model = Model2(SR, N_FFT)
+    line, above = 40, 60
+    soft = model.frame_threshold(single_peak(model, line, 60.0))
+    loud = model.frame_threshold(single_peak(model, line, 90.0))
+    assert loud[line] - loud[above] < soft[line] - soft[above]
+
+
+def test_model2_keeps_only_the_strongest_masker_within_half_a_bark():
+    model = Model2(SR, N_FFT)
+    x_db = single_peak(model, 40, 80.0)
+    near = 42
+    assert abs(model.z[near] - model.z[40]) < 0.5
+    x_db[near] = 70.0
+    idx, _ = model.maskers(x_db)
+    assert list(idx) == [40]
+    x_db[near] = 85.0
+    idx, _ = model.maskers(x_db)
+    assert list(idx) == [near]
+    # A peak more than 0.5 Bark away is a separate masker.
+    far = 60
+    assert model.z[far] - model.z[near] > 0.5
+    x_db[far] = 50.0
+    idx, _ = model.maskers(x_db)
+    assert list(idx) == [near, far]
+
+
+def test_model2_masker_below_threshold_in_quiet_is_ignored():
+    model = Model2(SR, N_FFT)
+    idx, _ = model.maskers(single_peak(model, 1, model.quiet_db[1] - 5))
+    assert len(idx) == 0
+
+
+def test_build_masking_selects_the_model_by_name():
+    assert set(MASKING_MODELS) == {"mpeg1", "lin_abdulla"}
+    model = build_masking("lin_abdulla", SR, N_FFT, 92.0)
+    assert isinstance(model, Model2)
+    assert model.playback_db == 92.0
+    with pytest.raises(ValueError):
+        build_masking("mpeg2", SR, N_FFT, 96.0)
+
+
+def test_visqol_is_high_for_identical_and_lower_for_noisy_signals():
+    rng = np.random.default_rng(5)
+    x = tone(LOUD_LINE, 0.3)[:SR] + 0.01 * rng.standard_normal(SR)
+    same = visqol_mos(x, x, SR)
+    noisy = visqol_mos(x, x + 0.1 * rng.standard_normal(SR), SR)
+    assert same > 4.5
+    assert noisy < same - 0.5

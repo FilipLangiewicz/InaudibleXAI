@@ -1,11 +1,17 @@
-"""MPEG-1 psychoacoustic model 1 (ISO/IEC 11172-3, Annex D).
+"""Masking thresholds for frames of one STFT.
 
-The implementation follows the description in Painter and Spanias (2000), section V,
-and the reference code of toolame (psycho_1.c). It evaluates the threshold on every
-spectral line, not on the subsampled frequency grid of the standard.
+Two models are available, so that each result can be reported under both (project card):
+
+- "mpeg1": MPEG-1 psychoacoustic model 1 (ISO/IEC 11172-3, Annex D). The implementation follows
+  Painter and Spanias (2000), section V, and the reference code of toolame (psycho_1.c).
+- "lin_abdulla": the threshold of Qin et al. (2019), section 4.1, which follows Lin and Abdulla (2015).
+
+Both models evaluate the threshold on every spectral line, use the same threshold in quiet and
+the same calibration of the playback level. Thus a change of the model changes only the masking.
 """
 
 from dataclasses import dataclass, field
+from typing import ClassVar
 
 import numpy as np
 
@@ -44,36 +50,60 @@ def _spreading(dz: np.ndarray, power_db: np.ndarray) -> np.ndarray:
 
 
 @dataclass
-class Model1:
-    """Masking threshold of MPEG-1 psychoacoustic model 1 for frames of one STFT.
+class MaskingModel:
+    """The common part of the masking models: the frequency grid, the calibration and the loop over frames.
 
     playback_db is the SPL of a full-scale sine. The threshold depends on it through
     the threshold in quiet and through the level-dependent spreading function.
     """
 
+    name: ClassVar[str] = ""
     sample_rate: int
     n_fft: int = 512
     playback_db: float = 96.0
     freqs: np.ndarray = field(init=False, repr=False)
     z: np.ndarray = field(init=False, repr=False)
     quiet_db: np.ndarray = field(init=False, repr=False)
-    _band: np.ndarray = field(init=False, repr=False)
-    _neighbours: list[np.ndarray] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.freqs = np.arange(self.n_fft // 2 + 1) * self.sample_rate / self.n_fft
         self.z = bark(self.freqs)
         self.quiet_db = absolute_threshold(self.freqs)
+
+    def to_db(self, power: np.ndarray) -> np.ndarray:
+        """Convert a one-sided power spectrum ("spectrum" scaling, Hann window) to dB SPL."""
+        return self.playback_db + 10 * np.log10(np.maximum(power, 1e-30) / _HANN_SINE_POWER)
+
+    def frame_threshold(self, x_db: np.ndarray) -> np.ndarray:
+        """Global masking threshold in dB SPL for one frame, given its spectrum in dB SPL."""
+        raise NotImplementedError
+
+    def threshold(self, power: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Masking threshold for a power spectrogram of shape (lines, frames).
+
+        Returns the spectrogram and the threshold, both in dB SPL.
+        """
+        x_db = self.to_db(power)
+        thr = np.stack([self.frame_threshold(x_db[:, t]) for t in range(x_db.shape[1])], axis=1)
+        return x_db, thr
+
+
+@dataclass
+class Model1(MaskingModel):
+    """Masking threshold of MPEG-1 psychoacoustic model 1."""
+
+    name: ClassVar[str] = "mpeg1"
+    _band: np.ndarray = field(init=False, repr=False)
+    _neighbours: list[np.ndarray] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
         self._band = np.floor(self.z).astype(int)
         scale = _REFERENCE_LINE_HZ / (self.sample_rate / self.n_fft)
         self._neighbours = []
         for f in self.freqs:
             ref = [2] if f < 5500 else [2, 3] if f < 11000 else [2, 3, 4, 5, 6]
             self._neighbours.append(np.unique(np.maximum(2, np.round(np.array(ref) * scale).astype(int))))
-
-    def to_db(self, power: np.ndarray) -> np.ndarray:
-        """Convert a one-sided power spectrum ("spectrum" scaling, Hann window) to dB SPL."""
-        return self.playback_db + 10 * np.log10(np.maximum(power, 1e-30) / _HANN_SINE_POWER)
 
     def maskers(self, x_db: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Find the tonal and noise maskers of one frame after decimation.
@@ -150,11 +180,57 @@ class Model1:
             total = total + (10 ** (individual / 10)).sum(axis=0)
         return np.asarray(10 * np.log10(total))
 
-    def threshold(self, power: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Masking threshold for a power spectrogram of shape (lines, frames).
 
-        Returns the spectrogram and the threshold, both in dB SPL.
-        """
-        x_db = self.to_db(power)
-        thr = np.stack([self.frame_threshold(x_db[:, t]) for t in range(x_db.shape[1])], axis=1)
-        return x_db, thr
+@dataclass
+class Model2(MaskingModel):
+    """Masking threshold of Qin et al. (2019), section 4.1, after Lin and Abdulla (2015).
+
+    All maskers are tonal. A masker is a local maximum of the spectrum that is above the threshold
+    in quiet and is the strongest masker within 0.5 Bark. The spread function has two slopes.
+
+    The reference code of Qin et al. (cleverhans, generate_masking_threshold.py) differs from the
+    paper in two points. It lowers the threshold in quiet by 12 dB, and it removes the threshold in
+    quiet below 1 Bark. This class follows the paper. Qin et al. also scale each clip so that its
+    largest bin is at 96 dB. This class uses the fixed calibration of playback_db instead, because
+    the project card asks for a stated playback level.
+    """
+
+    name: ClassVar[str] = "lin_abdulla"
+
+    def maskers(self, x_db: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Find the maskers of one frame. Returns the line index and the power in dB SPL of each masker."""
+        k = np.flatnonzero((x_db[1:-1] > x_db[:-2]) & (x_db[1:-1] > x_db[2:])) + 1
+        lin = 10 ** (x_db / 10)
+        power = 10 * np.log10(lin[k - 1] + lin[k] + lin[k + 1])
+        keep = power >= self.quiet_db[k]
+        k, power = k[keep], power[keep]
+        # A masker stays if no other masker within 0.5 Bark is stronger. Of two equal maskers, the lower one stays.
+        near = np.abs(self.z[k][:, None] - self.z[k][None, :]) < 0.5
+        lower = np.arange(len(k))[:, None] < np.arange(len(k))[None, :]
+        beats = (power[:, None] > power[None, :]) | ((power[:, None] == power[None, :]) & lower)
+        strongest = np.all(~near | beats | np.eye(len(k), dtype=bool), axis=1)
+        return k[strongest], power[strongest]
+
+    def frame_threshold(self, x_db: np.ndarray) -> np.ndarray:
+        """Global masking threshold in dB SPL for one frame, given its spectrum in dB SPL."""
+        idx, power = self.maskers(x_db)
+        total = 10 ** (self.quiet_db / 10)
+        if len(idx):
+            zj = self.z[idx][:, None]
+            pj = power[:, None]
+            dz = self.z[None, :] - zj
+            upper_slope = -27 + 0.37 * np.maximum(pj - 40, 0)
+            spreading = np.where(dz <= 0, 27 * dz, upper_slope * dz)
+            individual = pj + (-6.025 - 0.275 * zj) + spreading
+            total = total + (10 ** (individual / 10)).sum(axis=0)
+        return np.asarray(10 * np.log10(total))
+
+
+MASKING_MODELS: dict[str, type[MaskingModel]] = {m.name: m for m in (Model1, Model2)}
+
+
+def build_masking(name: str, sample_rate: int, n_fft: int, playback_db: float) -> MaskingModel:
+    """Make the masking model of the config ("mpeg1" or "lin_abdulla")."""
+    if name not in MASKING_MODELS:
+        raise ValueError(f"unknown masking model {name!r}, select one of {sorted(MASKING_MODELS)}")
+    return MASKING_MODELS[name](sample_rate, n_fft, playback_db)
