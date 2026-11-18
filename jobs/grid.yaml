@@ -1,0 +1,6 @@
+# The grid of T3 (issue #12): 2 masking models x 2 playback levels.
+# All jobs of T3 to T6 use this grid. Thus all models and all members have the same variants.
+# docs/refuting_result.md gives the sources of the values.
+# Do not change this file after the first T3 job.
+masking.model: [mpeg1, lin_abdulla]
+masking.playback_db: [96.0, 92.0]  # SPL of a full-scale sine

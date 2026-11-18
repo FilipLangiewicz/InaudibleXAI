@@ -10,6 +10,8 @@ The rows "<condition>_vs_between" of summary.csv give the change as a ratio of t
 with the verdict of the refuting rule (docs/refuting_result.md).
 """
 
+import copy
+import itertools
 import json
 import platform
 import subprocess
@@ -41,6 +43,43 @@ def load_config(codename: str) -> dict:
     cfg = yaml.safe_load(matches[0].read_text())
     cfg["codename"] = codename
     return cfg
+
+
+def _variant_name(value) -> str:
+    return f"{value:g}" if isinstance(value, float) else str(value)
+
+
+def expand_grid(cfg: dict, grid: dict[str, list]) -> list[dict]:
+    """Make one config for each combination of the grid values. The grid keys are dotted paths, e.g. masking.model.
+
+    Each variant gets the codename "<codename>-<value>-<value>" and the key "variant" with its grid values.
+    """
+    variants = []
+    for values in itertools.product(*grid.values()):
+        variant = copy.deepcopy(cfg)
+        for key, value in zip(grid, values, strict=True):
+            *parents, leaf = key.split(".")
+            section = variant
+            for p in parents:
+                section = section[p]
+            # One source for each value: a key in the grid and in the job config is an error.
+            if leaf in section:
+                raise ValueError(f"{key} is in the grid and in the config of {cfg['codename']}")
+            section[leaf] = value
+        variant["job"] = cfg["codename"]
+        variant["codename"] = "-".join([cfg["codename"], *map(_variant_name, values)])
+        variant["variant"] = dict(zip(grid, values, strict=True))
+        variants.append(variant)
+    return variants
+
+
+def load_variants(codename: str) -> list[dict]:
+    """Load a job config. If it has the key "grid" (a file in the project), return one config for each variant."""
+    cfg = load_config(codename)
+    grid_file = cfg.pop("grid", None)
+    if grid_file is None:
+        return [cfg]
+    return expand_grid(cfg, yaml.safe_load((PROJECT_DIR / grid_file).read_text()))
 
 
 def _commit() -> str:
@@ -206,7 +245,10 @@ def log_to_mlflow(out_dir: Path, tracking_uri: str | None = None) -> str:
     env = json.loads((out_dir / "environment.json").read_text())
     metrics = json.loads((out_dir / "metrics.json").read_text())
     mlflow.set_experiment(cfg.get("experiment", "inaudible"))
-    with mlflow.start_run(run_name=cfg["codename"]) as run:
+    tags = {"job": cfg.get("job", cfg["codename"])}
+    if "variant" in cfg:
+        tags["variant"] = ", ".join(f"{k}={v}" for k, v in cfg["variant"].items())
+    with mlflow.start_run(run_name=cfg["codename"], tags=tags) as run:
         flat = pd.json_normalize(cfg, sep=".").iloc[0].to_dict()
         mlflow.log_params({**flat, "commit": env["commit"], **{f"version.{k}": v for k, v in env["versions"].items()}})
         mlflow.log_metrics(metrics)
