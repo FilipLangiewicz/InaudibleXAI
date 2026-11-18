@@ -8,6 +8,27 @@ The procedure for a job is in `KAGGLE.md` (sections 6 and 8). In short:
 4. Follow it in the background: `bash jobs/wait.sh rozaliachojnacka/inaudiblexai-<job> <job>`.
 5. Download the small outputs into `jobs/runs/<folder>/output` and commit them.
 
+## The grid of T3
+
+Each job of T3 to T6 runs the 4 variants of `jobs/grid.yaml`: 2 masking models and 2 playback levels. To use the grid in a job, do these steps:
+
+1. Add the line `grid: jobs/grid.yaml` to the job config.
+2. Remove `masking.model` and `masking.playback_db` from the job config. The grid sets them.
+3. In `run.py`, get the variants with `load_variants(<codename>)`. Use `cfg["codename"]` as the name of the output folder.
+
+```python
+from pathlib import Path
+
+from inaudible.experiment import load_variants, run_experiment
+
+for cfg in load_variants("ast-esc50-v5"):
+    run_experiment(cfg, Path(f"/kaggle/working/{cfg['codename']}"), audio_dir, device)
+```
+
+The codename of a variant is `<codename>-<model>-<level>`, for example `ast-esc50-v5-lin_abdulla-92`. The `config.yaml` of each variant has the key `variant` with its grid values. `just fetch` records each variant as one MLflow run, with the tags `job` and `variant`.
+
+## The jobs
+
 Status values: to run, waiting for another job, queued, running, complete, failed, cancelled. The status cell has only one of these values, because `wait.sh` changes it. Put results into the comment.
 
 | Date | Job | Folder | Link | Comment | Status |

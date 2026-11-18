@@ -35,6 +35,13 @@ The playback level is the SPL of a full-scale sine. The config key `masking.play
 
 A lower level gives a higher threshold in quiet relative to the signal. Thus the deletion at 92 dB removes more energy than the deletion at 96 dB.
 
+The file `jobs/grid.yaml` holds the two levels and the two masking models. All jobs of T3 to T6 use this grid.
+
+The job `ast-esc50-v4abcdef` tested the levels 86, 76 and 66 dB. These levels are a sensitivity check for AST only. They are not in the grid, for two reasons:
+
+- They have no source in the literature.
+- The team saw their results before the decision. A level that we select for its large effect makes the test biased.
+
 The two masking models (config key `masking.model`):
 
 | Name | Model | Source |
