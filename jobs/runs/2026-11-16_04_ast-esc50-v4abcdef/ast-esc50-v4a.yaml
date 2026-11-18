@@ -1,0 +1,19 @@
+# T2: a sweep of lower playback levels (86, 76 and 66 dB) for the two masking models.
+# This is a sensitivity check, not a level from the literature. The other settings are the same as ast-esc50-v3a.
+experiment: t2-masking
+seed: 0
+data:
+  clip_list: data/clips/esc50_t1.csv
+masking:
+  model: mpeg1
+  n_fft: 512
+  playback_db: 86.0  # SPL of a full-scale sine
+audibility:
+  visqol: true
+model:
+  name: ast
+  checkpoint: MIT/ast-finetuned-audioset-10-10-0.4593
+  batch_size: 16
+metrics:
+  n_boot: 10000
+  within_margin: 0.05  # margin of the refuting rule (ratio to the between-clip change)

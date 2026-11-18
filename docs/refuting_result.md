@@ -22,6 +22,28 @@ We use the refuting result of the project card (`task_input/X2_projekt.md`) with
 
 If this result occurs, the models hear only what a human hears. The result is still useful: the metric becomes a certificate for a model.
 
+## The playback levels and the masking models
+
+The card tells us to state the playback level, to use two levels and to use two masking models. The team set these values on 2026-11-16, before T3.
+
+The playback level is the SPL of a full-scale sine. The config key `masking.playback_db` sets it. Both masking models use the same calibration.
+
+| Level | Source | Reason |
+|---|---|---|
+| 96 dB SPL | MPEG-1 model 1 (ISO/IEC 11172-3) and Qin et al. (2019). Schönherr et al. (2019) use 95 dB. | This level is the dynamic range of 16-bit audio. The attack papers use it. Thus our deletion uses the same rule as these papers. |
+| 92 dB SPL | ITU-R BS.1387 (PEAQ). Kabal (2002), section 2, states this value: "In the absence of other information, BS.1387 indicates that Lp should be set to 92 dB SPL." | This level is the default of the standard for objective audio quality. PEAQ is one of the measures of Kitłowski et al. (2026). |
+
+A lower level gives a higher threshold in quiet relative to the signal. Thus the deletion at 92 dB removes more energy than the deletion at 96 dB.
+
+The two masking models (config key `masking.model`):
+
+| Name | Model | Source |
+|---|---|---|
+| `mpeg1` | MPEG-1 psychoacoustic model 1 | ISO/IEC 11172-3, Painter and Spanias (2000), toolame (`psycho_1.c`) |
+| `lin_abdulla` | The threshold of Qin et al. (2019), section 4.1 | Lin and Abdulla (2015), as Qin et al. describe it |
+
+`src/inaudible/masking.py` describes the differences between the paper of Qin et al. and their code.
+
 ## The controls
 
 All controls come from the project card:

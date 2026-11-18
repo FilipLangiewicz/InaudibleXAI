@@ -21,7 +21,7 @@ This file describes the setup that runs the experiments of the project. The rule
 
 | Group | Packages | Where |
 |---|---|---|
-| main | NumPy, SciPy, soundfile, PyYAML, pandas | local machines and Kaggle |
+| main | NumPy, SciPy, soundfile, PyYAML, pandas, visqol-python (ViSQOL) | local machines and Kaggle |
 | `models` (optional) | PyTorch, Transformers | Kaggle only |
 | `dev` | pytest, ruff, mypy, pre-commit, Kaggle CLI, MLflow, Jupyter kernel, matplotlib | local machines only |
 

@@ -1,0 +1,13 @@
+{
+  "commit": "97d4703efbd5604aa31f7068cc18001477390c1a",
+  "device": "cuda:0",
+  "model": "MIT/ast-finetuned-audioset-10-10-0.4593",
+  "versions": {
+    "python": "3.13.16",
+    "numpy": "2.1.3",
+    "scipy": "1.16.3",
+    "visqol": "3.8.0",
+    "torch": "2.11.0+cu130",
+    "transformers": "5.20.2"
+  }
+}

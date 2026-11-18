@@ -24,8 +24,8 @@ import yaml
 from scipy.signal import resample_poly
 
 from inaudible.data import download_esc50, read_audio
-from inaudible.deletion import delete_random, delete_subthreshold, noise_to_mask, resynthesize
-from inaudible.masking import Model1
+from inaudible.deletion import delete_random, delete_subthreshold, noise_to_mask, resynthesize, visqol_mos
+from inaudible.masking import build_masking
 from inaudible.metrics import between_clip_pairs, bootstrap_ci, bootstrap_ratio_ci, output_change, within_control
 from inaudible.models import AudioClassifier, build_model
 
@@ -50,7 +50,7 @@ def _commit() -> str:
 
 def _versions() -> dict[str, str]:
     versions = {"python": platform.python_version()}
-    for name in ["numpy", "scipy", "torch", "transformers"]:
+    for name in ["numpy", "scipy", "visqol", "torch", "transformers"]:
         try:
             versions[name] = __import__(name).__version__
         except ImportError:
@@ -68,12 +68,17 @@ def _resample(x: np.ndarray, sr: int, target: int) -> np.ndarray:
 def process_clips(cfg: dict, paths: list[Path], listen: list[bool], out_dir: Path, target_sr: int):
     """Apply all conditions to each clip. Returns the waveforms at target_sr and a table of audio statistics."""
     mcfg = cfg["masking"]
+    use_visqol = cfg.get("audibility", {}).get("visqol", False)
     rng = np.random.default_rng(cfg["seed"])
     waves: dict[str, list[np.ndarray]] = {c: [] for c in ["original", *CONDITIONS]}
     rows = []
-    for path, is_listen in zip(paths, listen, strict=True):
+    t0 = time.time()
+    for i, (path, is_listen) in enumerate(zip(paths, listen, strict=True)):
+        if i % 10 == 0:
+            # The Kaggle log shows only the output that a process flushes.
+            print(f"{cfg.get('codename', '')}: clip {i}/{len(paths)}, {time.time() - t0:.0f} s", flush=True)
         x, sr = read_audio(path)
-        model = Model1(sr, mcfg["n_fft"], mcfg["playback_db"])
+        model = build_masking(mcfg["model"], sr, mcfg["n_fft"], mcfg["playback_db"])
         res = delete_subthreshold(x, model)
         versions = {
             "original": x,
@@ -83,12 +88,16 @@ def process_clips(cfg: dict, paths: list[Path], listen: list[bool], out_dir: Pat
         }
         row = {
             "filename": path.name,
+            # A full-scale sine has a mean square of 0.5 and the level playback_db.
+            "clip_spl_db": mcfg["playback_db"] + 10 * np.log10(max(np.mean(x**2), 1e-20) / 0.5),
             "fraction_bins_deleted": res.fraction_bins_deleted,
             "fraction_energy_deleted": res.fraction_energy_deleted,
         }
         for c in CONDITIONS:
             for key, value in noise_to_mask(x, versions[c], res.threshold_db, model).items():
                 row[f"{key}_{c}"] = value
+            if use_visqol:
+                row[f"visqol_{c}"] = visqol_mos(x, versions[c], sr)
         rows.append(row)
         for c, w in versions.items():
             waves[c].append(_resample(w, sr, target_sr))

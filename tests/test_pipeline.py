@@ -4,6 +4,7 @@ import json
 
 import numpy as np
 import pandas as pd
+import pytest
 import soundfile as sf
 
 from inaudible import experiment
@@ -27,7 +28,9 @@ class BandEnergyModel:
         return np.array(feats) @ self.weights
 
 
-def test_pipeline_writes_all_results(tmp_path, monkeypatch):
+# ViSQOL is slow, so only one masking model runs it.
+@pytest.mark.parametrize(("masking", "visqol"), [("mpeg1", False), ("lin_abdulla", True)])
+def test_pipeline_writes_all_results(tmp_path, monkeypatch, masking, visqol):
     sr = 44100
     rng = np.random.default_rng(0)
     audio_dir = tmp_path / "audio"
@@ -45,7 +48,8 @@ def test_pipeline_writes_all_results(tmp_path, monkeypatch):
         "codename": "smoke",
         "seed": 0,
         "data": {"clip_list": "clips.csv"},
-        "masking": {"model": "mpeg1", "n_fft": 512, "playback_db": 96.0},
+        "masking": {"model": masking, "n_fft": 512, "playback_db": 96.0},
+        "audibility": {"visqol": visqol},
         "model": {"name": "band-energy"},
         "metrics": {"n_boot": 200, "within_margin": 0.05},
     }
@@ -60,3 +64,6 @@ def test_pipeline_writes_all_results(tmp_path, monkeypatch):
     summary = pd.read_csv(out / "summary.csv").set_index(["condition", "measure"])
     assert summary.loc[("resynthesis_vs_between", "js_divergence"), "verdict"] == "within"
     assert json.loads((out / "metrics.json").read_text()) == metrics
+    assert (("audio", "visqol_deletion") in summary.index) == visqol
+    if visqol:
+        assert summary.loc[("audio", "visqol_resynthesis"), "mean"] > 4.5

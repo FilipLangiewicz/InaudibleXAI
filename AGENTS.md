@@ -127,7 +127,7 @@ The dependencies have three groups:
 
 | Group | Content | Where |
 |---|---|---|
-| main | The packages of the package code (NumPy, SciPy, soundfile, pandas, PyYAML). | Local machines and Kaggle |
+| main | The packages of the package code (NumPy, SciPy, soundfile, pandas, PyYAML, visqol-python). | Local machines and Kaggle |
 | `models` (optional) | PyTorch and Transformers. | Only Kaggle. The local machines do not run models. |
 | `dev` | The tools (pytest, ruff, mypy, pre-commit, Kaggle CLI, MLflow, Jupyter, matplotlib). | Only local machines |
 
